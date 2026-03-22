@@ -1,9 +1,11 @@
 # StockForge — Real-Time Stock Analytics Pipeline
 
-Production-grade data engineering pipeline that ingests, transforms, and validates stock market data end-to-end.
+Production-grade data engineering pipeline that ingests, streams, transforms, and validates stock market data end-to-end.
 
-**Stack**: Yahoo Finance → Kafka → Airflow → dbt → Snowflake + Great Expectations
-**Cost**: $0 (trial) → ~$8–15/month (production)
+**Stack**: Yahoo Finance → Kafka → Airflow → dbt → Snowflake + Great Expectations + CI/CD
+**Cost**: $0 (trial) → ~$8/month (production)
+
+![CI](https://github.com/meerahussain733/stockforge/actions/workflows/dbt_ci.yml/badge.svg)
 
 ---
 
@@ -12,34 +14,38 @@ Production-grade data engineering pipeline that ingests, transforms, and validat
 ```
 Yahoo Finance (yfinance)
     ↓
-Kafka Topics: stock_prices, portfolio_transactions
+Great Expectations — validate CSVs (35 checks)
     ↓
-Great Expectations (CSV validation before load)
+Kafka Producer → Topics: stock_prices, portfolio_transactions
     ↓
-Snowflake RAW — kafka_staging schema
+Kafka Consumer → Snowflake RAW (kafka_staging schema)
     ↓
-Airflow DAG — daily_stock_ingestion (2 AM UTC)
+Airflow DAG — daily_stock_ingestion (2 AM UTC) + Slack alerts on failure
     ↓
-dbt Transformations (5 models, 34 tests)
-    ├── Staging: stg_stock_prices, stg_portfolio_transactions
+dbt Transformations — incremental models (6 models, 39 tests)
+    ├── Staging:    stg_stock_prices, stg_portfolio_transactions
     ├── Dimensions: dim_users, dim_stocks
-    └── Facts: fct_daily_portfolio_value
+    └── Facts:      fct_daily_portfolio_value, fct_user_pnl
     ↓
-ANALYTICS schema (Snowflake)
+Snowflake ANALYTICS schema
     ↓
 Monitoring Dashboard (SQL — freshness, anomalies, health checks)
 ```
+
+GitHub Actions runs `dbt test` on every push to master.
 
 ---
 
 ## Key Design Decisions
 
-- Kafka KRaft mode (no Zookeeper)
-- Snowflake auto-suspend = 10 min
-- yfinance for market data ingestion
-- dbt staging + marts layer separation
-- Great Expectations on raw CSVs before load
-- Batch INSERT over write_pandas for Snowflake loading
+- Kafka KRaft mode (no Zookeeper) — modern, production-ready
+- Kafka consumer commits offsets only after successful Snowflake insert — no data loss on failure
+- Snowflake auto-suspend = 10 min — saves ~$1,430/month vs always-on
+- dbt incremental models — only process new rows on each run
+- Great Expectations validates source data before it enters Snowflake
+- Two ingestion paths: direct batch load + Kafka consumer (streaming)
+- CI/CD via GitHub Actions — dbt tests run on every push
+- Slack webhook alerts on Airflow DAG failures
 
 ---
 
@@ -48,7 +54,8 @@ Monitoring Dashboard (SQL — freshness, anomalies, health checks)
 - **5 stocks**: AAPL, GOOGL, MSFT, AMZN, TSLA
 - **2 years** of daily OHLCV prices (2505 rows)
 - **3050 simulated transactions** — 50 users, BUY/SELL via 50-day moving average logic
-- **34 dbt tests** — all passing
+- **39 dbt tests** — all passing
+- **35 Great Expectations checks** — all passing
 
 ---
 
@@ -65,7 +72,7 @@ Monitoring Dashboard (SQL — freshness, anomalies, health checks)
 ### 1. Clone and install dependencies
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/meerahussain733/stockforge.git
 cd stockforge
 python -m venv .venv
 source .venv/bin/activate
@@ -76,43 +83,40 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Fill in your Snowflake credentials
+# Fill in your Snowflake credentials and optional Slack webhook
 ```
 
 ### 3. Run Snowflake setup
 
 Run `scripts/snowflake_setup.sql` in the Snowflake UI to create databases, schemas, and tables.
 
-### 4. Fetch and load data
+### 4. Fetch and validate data
 
 ```bash
 python python/fetch_stocks.py
 python python/generate_transactions.py
+python great_expectations/run_validation.py
 python python/load_to_snowflake.py
 ```
 
-### 5. Validate data quality
-
-```bash
-python great_expectations/run_validation.py
-```
-
-### 6. Start Kafka
+### 5. Start Kafka and stream data
 
 ```bash
 docker compose up -d
 bash kafka/topics.sh
 python kafka/producer.py
+python kafka/consumer.py   # Ctrl+C when done
 ```
 
-### 7. Run dbt transformations
+### 6. Run dbt transformations
 
 ```bash
-dbt run --profiles-dir dbt/ --project-dir dbt/
+dbt run --profiles-dir dbt/ --project-dir dbt/ --full-refresh  # first time
+dbt run --profiles-dir dbt/ --project-dir dbt/                 # incremental
 dbt test --profiles-dir dbt/ --project-dir dbt/
 ```
 
-### 8. Start Airflow
+### 7. Start Airflow
 
 ```bash
 docker compose -f airflow/docker-compose-airflow.yml up airflow-init
@@ -133,15 +137,16 @@ stockforge/
 │   └── test_snowflake.py    # Connection test
 ├── kafka/                   # Streaming layer
 │   ├── producer.py          # Publish CSV data to Kafka topics
+│   ├── consumer.py          # Consume from Kafka, write to Snowflake
 │   └── topics.sh            # Create Kafka topics
 ├── airflow/                 # Orchestration
 │   ├── dags/
-│   │   └── daily_ingestion.py  # Main pipeline DAG (2 AM UTC)
+│   │   └── daily_ingestion.py  # Main pipeline DAG + Slack alerts
 │   └── docker-compose-airflow.yml
 ├── dbt/                     # SQL transformations
 │   ├── models/
-│   │   ├── staging/         # stg_stock_prices, stg_portfolio_transactions
-│   │   ├── marts/           # dim_users, dim_stocks, fct_daily_portfolio_value
+│   │   ├── staging/         # Incremental: stg_stock_prices, stg_portfolio_transactions
+│   │   ├── marts/           # dim_users, dim_stocks, fct_daily_portfolio_value, fct_user_pnl
 │   │   └── tests/           # Custom SQL tests
 │   ├── macros/
 │   ├── dbt_project.yml
@@ -152,7 +157,9 @@ stockforge/
 │   └── monitoring_queries.sql
 ├── scripts/                 # Snowflake setup SQL
 │   └── snowflake_setup.sql
-├── docker-compose.yml       # Kafka (KRaft mode)
+├── .github/workflows/       # CI/CD
+│   └── dbt_ci.yml           # Auto-run dbt tests on push
+├── docker-compose.yml       # Kafka (KRaft mode, no Zookeeper)
 ├── requirements.txt
 └── .env.example
 ```
@@ -164,5 +171,18 @@ stockforge/
 | Component | Monthly |
 |---|---|
 | Snowflake XSMALL (auto-suspend 10 min) | ~$8 |
-| Everything else | $0 |
+| Everything else (Kafka, Airflow, GitHub Actions, Slack) | $0 |
 | **Total** | **~$8** |
+
+---
+
+## Pipeline in Action
+
+**Airflow DAG — daily_stock_ingestion**
+![Airflow DAG](Airflow.png)
+
+**dbt Lineage Graph**
+![dbt Lineage Graph](Dbt_lineage_graph.png)
+
+**Slack Failure Alert**
+![Slack Failure Alert](Slack_Failure_Alert.png)
