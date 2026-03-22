@@ -1,0 +1,26 @@
+name: 'stockforge'
+version: '1.0.0'
+config-version: 2
+
+profile: 'stockforge'
+
+# Path settings — dbt looks for models here
+model-paths: ["models"]
+analysis-paths: ["analysis"]
+test-paths: ["models/tests"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  stockforge:
+    staging:
+      +schema: staging          # writes to ANALYTICS.staging
+      +materialized: view       # staging = lightweight views (no storage cost)
+    marts:
+      +schema: marts            # writes to ANALYTICS.marts
+      +materialized: table      # marts = physical tables (fast to query)

@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: dim_users
+    description: "One row per user with trade summary statistics"
+    columns:
+      - name: user_id
+        description: "Unique user identifier"
+        tests:
+          - not_null
+          - unique
+      - name: first_trade_date
+        tests:
+          - not_null
+      - name: last_trade_date
+        tests:
+          - not_null
+      - name: total_trades
+        tests:
+          - not_null
+      - name: unique_stocks_traded
+        tests:
+          - not_null
+
+  - name: dim_stocks
+    description: "One row per ticker with price summary statistics"
+    columns:
+      - name: ticker
+        description: "Stock ticker symbol"
+        tests:
+          - not_null
+          - unique
+      - name: avg_close_price
+        tests:
+          - not_null
+      - name: trading_days
+        tests:
+          - not_null
+
+  - name: fct_daily_portfolio_value
+    description: "Daily total portfolio value per user across all held stocks"
+    columns:
+      - name: user_id
+        tests:
+          - not_null
+      - name: value_date
+        tests:
+          - not_null
+      - name: total_portfolio_value
+        tests:
+          - not_null
+      - name: stocks_held
+        tests:
+          - not_null

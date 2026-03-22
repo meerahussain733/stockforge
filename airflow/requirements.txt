@@ -1,0 +1,8 @@
+# Airflow Docker container dependencies
+# This file is used inside the Airflow Docker image, not locally
+
+apache-airflow==2.7.0
+apache-airflow-providers-snowflake==4.1.0
+apache-airflow-providers-common-sql
+snowflake-connector-python==3.1.0
+python-dotenv==1.0.0

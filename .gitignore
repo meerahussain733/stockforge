@@ -1,0 +1,67 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+credentials/
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# dbt generated output
+dbt/target/
+dbt/dbt_packages/
+dbt_packages/
+
+# Airflow runtime
+airflow/logs/
+airflow/airflow.db
+airflow.cfg
+
+# Terraform state — may contain sensitive values
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+
+# Data files
+*.csv
+*.parquet
+*.json.gz
+
+# OS and IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Great Expectations generated reports
+great_expectations/reports/
+
+# Internal working files
+CLAUDE.md
+progress.md
+.claudeignore
+
+# dbt personal config and logs
+dbt/.user.yml
+dbt/logs/
+logs/
+
+# Tmp
+tmp/
