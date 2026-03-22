@@ -52,3 +52,22 @@ models:
       - name: stocks_held
         tests:
           - not_null
+
+  - name: fct_user_pnl
+    description: "Realized and unrealized P&L per user per stock per day"
+    columns:
+      - name: user_id
+        tests:
+          - not_null
+      - name: ticker
+        tests:
+          - not_null
+      - name: value_date
+        tests:
+          - not_null
+      - name: total_pnl
+        tests:
+          - not_null
+      - name: shares_held
+        tests:
+          - not_null

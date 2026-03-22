@@ -4,6 +4,9 @@ Schedule: 2 AM UTC every day
 Pipeline: fetch_stocks → load_to_snowflake → dbt run → dbt test
 """
 
+import os
+import urllib.request
+import json
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
@@ -11,12 +14,45 @@ from airflow.operators.bash import BashOperator
 # Scripts live at /opt/airflow/python inside the container (mounted volume)
 PYTHON_DIR = "/opt/airflow/python"
 
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
+
+
+def send_slack_alert(context):
+    """Send a Slack notification when any task fails."""
+    if not SLACK_WEBHOOK_URL:
+        return
+
+    dag_id   = context.get("dag").dag_id
+    task_id  = context.get("task_instance").task_id
+    log_url  = context.get("task_instance").log_url
+    exec_dt  = context.get("execution_date")
+
+    message = {
+        "text": (
+            f":red_circle: *StockForge pipeline failed*\n"
+            f"*DAG*: `{dag_id}`\n"
+            f"*Task*: `{task_id}`\n"
+            f"*Time*: `{exec_dt}`\n"
+            f"*Logs*: {log_url}"
+        )
+    }
+
+    data = json.dumps(message).encode("utf-8")
+    req  = urllib.request.Request(
+        SLACK_WEBHOOK_URL,
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    urllib.request.urlopen(req)
+
+
 default_args = {
     "owner": "stockforge",
     "depends_on_past": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
     "email_on_failure": False,
+    "on_failure_callback": send_slack_alert,
 }
 
 with DAG(

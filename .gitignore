@@ -57,6 +57,10 @@ great_expectations/reports/
 CLAUDE.md
 progress.md
 .claudeignore
+ARCHITECTURE.md
+SETUP.md
+COST_ANALYSIS.md
+INTERVIEW_TALKING_POINTS.md
 
 # dbt personal config and logs
 dbt/.user.yml
