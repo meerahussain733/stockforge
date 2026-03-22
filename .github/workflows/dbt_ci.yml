@@ -1,0 +1,40 @@
+name: dbt CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  dbt-test:
+    name: Run dbt tests
+    runs-on: ubuntu-latest
+
+    env:
+      SNOWFLAKE_ACCOUNT:    ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER:       ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD:   ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_WAREHOUSE:  ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      SNOWFLAKE_DATABASE:   ANALYTICS
+      SNOWFLAKE_SCHEMA:     staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dbt
+        run: |
+          pip install --upgrade pip
+          pip install dbt-snowflake==1.7.0
+
+      - name: Run dbt compile (verify models parse correctly)
+        run: dbt compile --profiles-dir dbt/ --project-dir dbt/
+
+      - name: Run dbt test
+        run: dbt test --profiles-dir dbt/ --project-dir dbt/
