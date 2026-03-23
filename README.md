@@ -186,3 +186,6 @@ stockforge/
 
 **Slack Failure Alert**
 ![Slack Failure Alert](Slack_Failure_Alert.png)
+
+**Tableau Dashboard — Portfolio Analytics**
+![Tableau Dashboard](Tableau Dashboard.png)
